@@ -35,6 +35,9 @@ is auto-derived from conf/modalities/instruction_16mod_stage2.yaml.
 
 import os
 import sys
+import json
+import time
+import torch
 
 
 def _parse_args():
@@ -110,6 +113,7 @@ def _print_usage():
 
 
 def main():
+    process_started = time.perf_counter()
     cfg, repo_root = _parse_args()
 
     # Add repo root to path for imports
@@ -167,6 +171,18 @@ def main():
         )
     else:
         raise ValueError(f"Unknown format: {fmt}")
+
+    parameter_count = sum(p.numel() for p in model.parameters())
+    print("ORX_RUNTIME_AUDIT " + json.dumps({
+        "checkpoint_path": str(resolve_path(cfg.get("checkpoint_path") or cfg.get("model_path"))),
+        "model_class": type(model).__name__,
+        "model_object_id": id(model),
+        "inferencer_factory": "create_inferencer",
+        "parameter_count": parameter_count,
+        "registry_object_id": id(modality_registry),
+        "registry_modalities": [spec.name for spec in modality_registry.specs],
+        "vae_class": type(vae_model).__name__,
+    }, sort_keys=True))
 
     # ── Auto-derive settings from modality registry ───────────────────────
     condition = cfg["condition"]
@@ -291,6 +307,19 @@ def main():
         )
 
     print(f"Output saved to: {output_dir}")
+    peak_bytes = int(torch.cuda.max_memory_allocated()) if torch.cuda.is_available() else 0
+    print("ORX_INFERENCE_SUMMARY " + json.dumps({
+        "condition": condition,
+        "target": target,
+        "intermediate": intermediate,
+        "seed": cfg["seed"],
+        "num_timesteps": cfg["num_timesteps"],
+        "image_size": cfg.get("image_size", 1024),
+        "num_images": len(image_list),
+        "num_samples": cfg.get("num_samples", 2),
+        "elapsed_seconds": time.perf_counter() - process_started,
+        "peak_memory_bytes": peak_bytes,
+    }, sort_keys=True))
 
 
 if __name__ == "__main__":
