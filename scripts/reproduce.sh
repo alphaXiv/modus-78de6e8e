@@ -67,7 +67,7 @@ for gpu in 0 1 2 3; do
       --rank "$gpu" --world-size 4 \
       --checkpoint "$CHECKPOINT_DIR" \
       --dataset-dir "$DATASET_DIR" \
-      --steps 10
+      --steps 20
   ) >"/tmp/rank_${gpu}.log" 2>&1 &
   eval "PID${gpu}=$!"
 done
