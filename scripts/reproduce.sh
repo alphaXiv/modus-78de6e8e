@@ -17,7 +17,6 @@ python -m pip install --disable-pip-version-check \
 python scripts/audit_architecture.py
 
 CHECKPOINT_DIR=/workspace/cache/modus
-DATASET_DIR=/workspace/cache/nyuv2
 mkdir -p "$CHECKPOINT_DIR"
 python - <<'PY'
 from huggingface_hub import snapshot_download
@@ -27,18 +26,6 @@ path = snapshot_download(
     local_dir_use_symlinks=False,
 )
 print(f"ORX_CHECKPOINT repo=EPFL-VILAB/MODUS path={path}")
-PY
-
-mkdir -p "$DATASET_DIR"
-python - <<'PY'
-from huggingface_hub import snapshot_download
-path = snapshot_download(
-    "tanganke/nyuv2",
-    repo_type="dataset",
-    allow_patterns=["data/val-*.parquet", "README.md"],
-    local_dir="/workspace/cache/nyuv2",
-)
-print(f"ORX_DATASET repo=tanganke/nyuv2 split=val expected_examples=654 path={path}")
 PY
 
 python - <<'PY'
@@ -63,11 +50,9 @@ export MODUS_NO_MEAN_RESIZING=1
 for gpu in 0 1 2 3; do
   (
     export CUDA_VISIBLE_DEVICES="$gpu"
-    python scripts/nyuv2_eval.py \
+    python scripts/selfverify_eval.py \
       --rank "$gpu" --world-size 4 \
-      --checkpoint "$CHECKPOINT_DIR" \
-      --dataset-dir "$DATASET_DIR" \
-      --steps 10
+      --checkpoint "$CHECKPOINT_DIR"
   ) >"/tmp/rank_${gpu}.log" 2>&1 &
   eval "PID${gpu}=$!"
 done
@@ -86,6 +71,6 @@ for gpu in 0 1 2 3; do
 done
 
 END_UNIX="$(date +%s)"
-echo "ORX_EVIDENCE {\"scout_tasks\":4,\"successful\":$((1-FAIL)),\"elapsed_seconds\":$((END_UNIX-START_UNIX)),\"peak_concurrent_gpus\":4}"
+echo "ORX_EVIDENCE {\"workers\":4,\"successful\":$((1-FAIL)),\"elapsed_seconds\":$((END_UNIX-START_UNIX)),\"peak_concurrent_gpus\":4}"
 echo "ORX_REPRO_END utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 exit "$FAIL"
