@@ -6,6 +6,8 @@ echo "ORX_REPRO_START utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "ORX_REPRO_COMPUTE backend=kubernetes requested_gpus=4"
 nvidia-smi --query-gpu=index,name,memory.total,driver_version --format=csv,noheader
 
+apt-get update -qq
+apt-get install -y -qq libgl1
 python -m pip install --disable-pip-version-check -r requirements.txt
 
 python scripts/audit_architecture.py
