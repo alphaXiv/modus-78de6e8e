@@ -10,26 +10,15 @@ spec:
       restartPolicy: Never
       containers:
         - name: run
-          image: pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+          image: python:3.11-slim
           command: ["bash", "-lc", "eval \"$ORX_SCRIPT\""]
           env:
-            - name: HF_HOME
-              value: /workspace/cache/huggingface
-            - name: PIP_CACHE_DIR
-              value: /workspace/cache/pip
             - name: PYTHONUNBUFFERED
               value: "1"
           resources:
             requests:
-              nvidia.com/gpu: "4"
-              cpu: "24"
-              memory: "240Gi"
+              cpu: "2"
+              memory: "4Gi"
             limits:
-              nvidia.com/gpu: "4"
-          volumeMounts:
-            - name: workspace
-              mountPath: /workspace
-      volumes:
-        - name: workspace
-          emptyDir:
-            sizeLimit: 240Gi
+              cpu: "2"
+              memory: "4Gi"
