@@ -144,7 +144,7 @@ def load_any2any_model_hf(
     model_path: str,
     model_name: str = "bagel_from_json",
     init_on_gpu: bool = True,
-    ckpt_file: str = "ema.safetensors",
+    ckpt_file: str = "model.safetensors",
     modality_config_path: Optional[str] = None,
     **_legacy_kwargs,
 ) -> Tuple[Bagel, object, object, dict, ModalityRegistry]:

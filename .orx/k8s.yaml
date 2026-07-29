@@ -23,7 +23,7 @@ spec:
             requests:
               nvidia.com/gpu: "4"
               cpu: "24"
-              memory: "240Gi"
+              memory: "400Gi"
             limits:
               nvidia.com/gpu: "4"
           volumeMounts:
@@ -32,4 +32,4 @@ spec:
       volumes:
         - name: workspace
           emptyDir:
-            sizeLimit: 240Gi
+            sizeLimit: 100Gi
