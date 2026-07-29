@@ -11,11 +11,13 @@ python -m pip install --disable-pip-version-check \
   "transformers==4.49.0" "safetensors==0.4.5" "accelerate>=0.34" \
   "einops==0.8.1" "numpy==1.24.4" "pillow>=9.3" \
   "opencv-python-headless==4.7.0.72" "scipy==1.10.1" \
-  "scikit-learn==1.2.2" "matplotlib==3.7.0" "pyyaml>=6"
+  "scikit-learn==1.2.2" "matplotlib==3.7.0" "pyyaml>=6" \
+  "pyarrow==11.0.0"
 
 python scripts/audit_architecture.py
 
 CHECKPOINT_DIR=/workspace/cache/modus
+DATASET_DIR=/workspace/cache/nyuv2
 mkdir -p "$CHECKPOINT_DIR"
 python - <<'PY'
 from huggingface_hub import snapshot_download
@@ -25,6 +27,18 @@ path = snapshot_download(
     local_dir_use_symlinks=False,
 )
 print(f"ORX_CHECKPOINT repo=EPFL-VILAB/MODUS path={path}")
+PY
+
+mkdir -p "$DATASET_DIR"
+python - <<'PY'
+from huggingface_hub import snapshot_download
+path = snapshot_download(
+    "tanganke/nyuv2",
+    repo_type="dataset",
+    allow_patterns=["data/val-*.parquet", "README.md"],
+    local_dir="/workspace/cache/nyuv2",
+)
+print(f"ORX_DATASET repo=tanganke/nyuv2 split=val expected_examples=654 path={path}")
 PY
 
 python - <<'PY'
@@ -45,37 +59,30 @@ print("ORX_EVIDENCE " + json.dumps({
 }, sort_keys=True))
 PY
 
-mkdir -p /workspace/outputs
-
-run_task() {
-  local gpu="$1"
-  local label="$2"
-  shift 2
+export MODUS_NO_MEAN_RESIZING=1
+for gpu in 0 1 2 3; do
   (
     export CUDA_VISIBLE_DEVICES="$gpu"
-    echo "ORX_TASK_START label=$label gpu=$gpu utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    python infer.py "$@" \
-      checkpoint_path="$CHECKPOINT_DIR" \
-      format=hf image_size=512 num_timesteps=5 num_samples=1 seed=20260729 \
-      output_dir="/workspace/outputs/$label"
-    echo "ORX_TASK_END label=$label utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  ) 2>&1 | sed -u "s/^/[$label] /"
-}
-
-run_task 0 rgb_depth --condition rgb --target depth input_image=test_images/01_basil_cathedral.jpg &
-PID0=$!
-run_task 1 rgb_normal --condition rgb --target normal input_image=test_images/02_waterfall.jpg &
-PID1=$!
-run_task 2 rgb_canny_normal --condition rgb --target normal --intermediate canny input_image=test_images/03_kremlin_clock.jpg &
-PID2=$!
-run_task 3 rgb_caption --condition rgb --target caption input_image=test_images/06_city_bus.jpg &
-PID3=$!
+    python scripts/nyuv2_eval.py \
+      --rank "$gpu" --world-size 4 \
+      --checkpoint "$CHECKPOINT_DIR" \
+      --dataset-dir "$DATASET_DIR" \
+      --steps 10
+  ) >"/tmp/rank_${gpu}.log" 2>&1 &
+  eval "PID${gpu}=$!"
+done
 
 FAIL=0
 for pid in "$PID0" "$PID1" "$PID2" "$PID3"; do
   if ! wait "$pid"; then
     FAIL=1
   fi
+done
+
+for gpu in 0 1 2 3; do
+  echo "ORX_RANK_LOG_BEGIN rank=$gpu"
+  cat "/tmp/rank_${gpu}.log"
+  echo "ORX_RANK_LOG_END rank=$gpu"
 done
 
 END_UNIX="$(date +%s)"
