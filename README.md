@@ -1,3 +1,25 @@
+# MODUS reproduction: blocked before released-model behavior
+
+[![Open in molab](https://marimo.io/molab-shield.svg)](https://molab.marimo.io/github/alphaXiv/modus-78de6e8e/blob/main/reports/modus-reproduction/notebook.py)
+
+We tested arXiv:2607.25948’s claims that one released MODUS checkpoint uses a shared decoder/registry, that RGB→Canny→normal improves or preserves NYUv2 surface-normal accuracy while adding latency, and that the model’s own grounding/VQA scores improve best-of-four selection. A successful Kubernetes static audit found one unified inferencer and all 16 registered modalities, but the GPU path was blocked before checkpoint construction by container system dependencies. Consequently, the paper’s 20.02°→19.87° NYUv2 result and 0.81→0.82/0.84 GenEval result have no observed reproduction number here.
+
+The intended evaluation was downscaled to 16 fixed NYUv2 validation examples and eight fixed object-only GenEval prompts, with no synthetic replacement. Compute used Kubernetes on NVIDIA RTX PRO 6000 Blackwell GPUs, reached 16 concurrently allocated GPUs, and spanned 0.82 hours of actual wall time. See the [tutorial report](reports/modus-reproduction/report.md) and [self-contained marimo notebook](reports/modus-reproduction/notebook.py).
+
+## Experiment log
+
+| Branch / experiment | Purpose or change | Exact run command | Assessment / outcome | Compute |
+|---|---|---|---|---|
+| `main` | Public report, figures, and notebook | Not run as an experiment (publication surface) | Presentation only | — |
+| [Static architecture evidence](https://github.com/alphaXiv/modus-78de6e8e/tree/orx/kubernetes-static-architecture-evidence) | AST/YAML audit of shared inferencer, registry, and chained route | `bash scripts/reproduce.sh` | **Success:** nonempty terminal log; static design aligned | Kubernetes CPU, 21 s |
+| [Full released environment load audit](https://github.com/alphaXiv/modus-78de6e8e/tree/orx/full-released-environment-load-audit) | Install full released requirements and load four checkpoint copies | `bash scripts/reproduce.sh` | **Blocked before model construction:** missing native OpenCV libraries after one repair | Kubernetes, 4× RTX PRO 6000 Blackwell |
+| [Paired NYUv2 evaluation](https://github.com/alphaXiv/modus-78de6e8e/tree/orx/nyuv2-paired-direct-and-canny-chain) | Direct vs Canny-chained normals on 16 fixed public examples | `bash scripts/reproduce.sh` | **No behavioral result:** import failed before model load | Kubernetes, 4× RTX PRO 6000 Blackwell |
+| [GenEval self-verification](https://github.com/alphaXiv/modus-78de6e8e/tree/orx/geneval-grounding-self-verification) | Best-of-four grounding selection on eight fixed prompts | `bash scripts/reproduce.sh` | **No behavioral result:** import failed before model load | Kubernetes, 4× RTX PRO 6000 Blackwell |
+
+The repository remains public and contains no checkpoint weights, benchmark data, credentials, or redistributed restricted artifacts.
+
+---
+
 # MODUS: Decoder-only Any-to-Any Modeling of Diverse Modalities
 
 *One decoder that treats every modality symmetrically, with no modality-specific heads, losses, or task pipelines.*
